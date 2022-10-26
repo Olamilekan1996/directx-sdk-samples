@@ -29,6 +29,7 @@ struct SimpleVertex
 {
     XMFLOAT3 Pos;
     XMFLOAT4 Color;
+    XMFLOAT3 Normal;
 };
 
 
@@ -37,6 +38,7 @@ struct ConstantBuffer
 	XMMATRIX mWorld;
 	XMMATRIX mView;
 	XMMATRIX mProjection;
+    XMVECTOR lightPos;
 };
 
 
@@ -63,7 +65,9 @@ ID3D11Buffer*           g_pConstantBuffer = nullptr;
 XMMATRIX                g_World;
 XMMATRIX                g_View;
 XMMATRIX                g_Projection;
-
+XMVECTOR                lightpos;
+ID3D11Texture2D* g_pDepthStencil = nullptr;
+ID3D11DepthStencilView* g_pDepthStencilView = nullptr;
 
 //--------------------------------------------------------------------------------------
 // Forward declarations
@@ -367,8 +371,29 @@ HRESULT InitDevice()
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 	};
 	UINT numElements = ARRAYSIZE( layout );
+    D3D11_TEXTURE2D_DESC descDepth;
+    ZeroMemory(&descDepth, sizeof(descDepth));
+    descDepth.Width = width;
+
+    descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+
+    hr = g_pd3dDevice->CreateTexture2D(&descDepth, nullptr,
+        &g_pDepthStencil);
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
+    ZeroMemory(&descDSV, sizeof(descDSV));
+    descDSV.Format = descDepth.Format;
+    descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    descDSV.Texture2D.MipSlice = 0;
+    hr = g_pd3dDevice->CreateDepthStencilView(g_pDepthStencil, &descDSV,
+        &g_pDepthStencilView);
+
+   // render target
+        g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, g_pDepthStencilView);
+
 
     // Create the input layout
 	hr = g_pd3dDevice->CreateInputLayout( layout, numElements, pVSBlob->GetBufferPointer(),
@@ -376,6 +401,7 @@ HRESULT InitDevice()
 	pVSBlob->Release();
 	if( FAILED( hr ) )
         return hr;
+  
 
     // Set the input layout
     g_pImmediateContext->IASetInputLayout( g_pVertexLayout );
@@ -399,18 +425,18 @@ HRESULT InitDevice()
     // Create vertex buffer
     SimpleVertex vertices[] =
     {
-        { XMFLOAT3( -1.0f, 1.0f, -1.0f ), XMFLOAT4( 0.0f, 0.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, 1.0f, -1.0f ), XMFLOAT4( 0.0f, 1.0f, 0.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, 1.0f, 1.0f ), XMFLOAT4( 0.0f, 1.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( -1.0f, 1.0f, 1.0f ), XMFLOAT4( 1.0f, 0.0f, 0.0f, 1.0f ) },
-        { XMFLOAT3( -1.0f, -1.0f, -1.0f ), XMFLOAT4( 1.0f, 0.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, -1.0f, -1.0f ), XMFLOAT4( 1.0f, 1.0f, 0.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, -1.0f, 1.0f ), XMFLOAT4( 1.0f, 1.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( -1.0f, -1.0f, 1.0f ), XMFLOAT4( 0.0f, 0.0f, 0.0f, 1.0f ) },
+        { XMFLOAT3( -1.0f, 1.0f, -1.0f ),   XMFLOAT4( 0.0f, 0.0f, 1.0f, 1.0f ),    XMFLOAT3(0.0f, 1.0f, 1.0f) },
+        { XMFLOAT3( 1.0f, 1.0f, -1.0f ),    XMFLOAT4( 0.0f, 1.0f, 0.0f, 1.0f ),    XMFLOAT3(0.0f, 1.0f, 1.0f) },
+        { XMFLOAT3( 1.0f, 1.0f, 1.0f ),     XMFLOAT4( 0.0f, 1.0f, 1.0f, 1.0f ),    XMFLOAT3(0.0f, 1.0f, 1.0f) },
+        { XMFLOAT3( -1.0f, 1.0f, 1.0f ),    XMFLOAT4( 1.0f, 0.0f, 0.0f, 1.0f ),    XMFLOAT3(0.0f, 1.0f, 1.0f) },
+        { XMFLOAT3( -1.0f, -1.0f, -1.0f ),  XMFLOAT4( 1.0f, 0.0f, 1.0f, 1.0f ),    XMFLOAT3(-1.0f, -1.0f, -1.0f) },
+        { XMFLOAT3( 1.0f, -1.0f, -1.0f ),   XMFLOAT4( 1.0f, 1.0f, 0.0f, 1.0f ),    XMFLOAT3(-1.0f, -1.0f, -1.0f) },
+        { XMFLOAT3( 1.0f, -1.0f, 1.0f ),    XMFLOAT4( 1.0f, 1.0f, 1.0f, 1.0f ),    XMFLOAT3(-1.0f, -1.0f, -1.0f) },
+        { XMFLOAT3( -1.0f, -1.0f, 1.0f ),   XMFLOAT4( 0.0f, 0.0f, 0.0f, 1.0f ),    XMFLOAT3(-1.0f, -1.0f, -1.0f) },
     };
     D3D11_BUFFER_DESC bd = {};
     bd.Usage = D3D11_USAGE_DEFAULT;
-    bd.ByteWidth = sizeof( SimpleVertex ) * 8;
+    bd.ByteWidth = sizeof( SimpleVertex ) * 16;
     bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bd.CPUAccessFlags = 0;
 
@@ -445,6 +471,24 @@ HRESULT InitDevice()
 
         6,4,5,
         7,4,6,
+        
+        11,9,8,
+        10,9,11,
+
+        8,13,12,
+        9,13,8,
+
+        11,12,15,
+        8,12,11,
+
+        9,14,13,
+        10,14,9,
+
+        10,15,14,
+        11,15,10,
+
+        14,12,13,
+        15,12,14,
     };
     bd.Usage = D3D11_USAGE_DEFAULT;
     bd.ByteWidth = sizeof( WORD ) * 36;        // 36 vertices needed for 12 triangles in a triangle list
@@ -479,8 +523,12 @@ HRESULT InitDevice()
 	XMVECTOR Up = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
 	g_View = XMMatrixLookAtLH( Eye, At, Up );
 
+    // Initialize the vector lightpos
+    XMVECTOR lightpos = XMVectorSet(0.0f, 1.0f, -5.0f, 0.0f);
+
     // Initialize the projection matrix
 	g_Projection = XMMatrixPerspectiveFovLH( XM_PIDIV2, width / (FLOAT)height, 0.01f, 100.0f );
+
 
     return S_OK;
 }
@@ -506,6 +554,7 @@ void CleanupDevice()
     if( g_pImmediateContext ) g_pImmediateContext->Release();
     if( g_pd3dDevice1 ) g_pd3dDevice1->Release();
     if( g_pd3dDevice ) g_pd3dDevice->Release();
+   
 }
 
 
@@ -564,10 +613,15 @@ void Render()
     //
 	g_World = XMMatrixRotationY( t );
 
+
     //
     // Clear the back buffer
     //
     g_pImmediateContext->ClearRenderTargetView( g_pRenderTargetView, Colors::MidnightBlue );
+
+    // clear the depth-stencil buffer 
+    g_pImmediateContext->ClearDepthStencilView(g_pDepthStencilView,
+        D3D11_CLEAR_DEPTH, 1.0f, 0);
 
     //
     // Update variables

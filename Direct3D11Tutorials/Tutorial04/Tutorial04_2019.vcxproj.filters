@@ -33,5 +33,8 @@
     <None Include="Tutorial04.fxh">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="VS2.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

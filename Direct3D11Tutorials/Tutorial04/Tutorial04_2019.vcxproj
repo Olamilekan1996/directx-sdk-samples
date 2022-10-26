@@ -400,6 +400,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Tutorial04.fxh" />
+    <None Include="VS2.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
